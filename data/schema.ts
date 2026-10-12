@@ -1,170 +1,214 @@
-/** SQLite スキーマ定義（高校舞台） */
+/** SQLite スキーマ定義（学園業務システム） */
 export const SCHEMA_SQL = `
-CREATE TABLE classes (
-  class_id   INTEGER PRIMARY KEY,
-  grade      INTEGER NOT NULL,
-  class_name TEXT NOT NULL,
-  homeroom   TEXT
+CREATE TABLE departments (
+  dept_id   INTEGER PRIMARY KEY,
+  dept_name TEXT NOT NULL,
+  est_year  INTEGER
+);
+CREATE TABLE teachers (
+  teacher_id INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,
+  dept_id    INTEGER REFERENCES departments(dept_id),
+  hire_date  TEXT,
+  is_active  INTEGER
+);
+CREATE TABLE classrooms (
+  classroom_id INTEGER PRIMARY KEY,
+  grade        INTEGER NOT NULL,
+  class_label  TEXT NOT NULL,
+  dept_id      INTEGER REFERENCES departments(dept_id),
+  teacher_id   INTEGER REFERENCES teachers(teacher_id)
 );
 CREATE TABLE students (
   student_id   INTEGER PRIMARY KEY,
   name         TEXT NOT NULL,
-  age          INTEGER,
-  class_id     INTEGER REFERENCES classes(class_id),
-  admission    TEXT,
-  birthday     TEXT,
-  blood_type   TEXT,
-  height_cm    INTEGER,
-  weight_kg    INTEGER,
-  dominant_hand TEXT,
-  hometown     TEXT,
-  residence    TEXT
+  classroom_id INTEGER REFERENCES classrooms(classroom_id),
+  enroll_year  INTEGER,
+  birth_date   TEXT,
+  gender       TEXT,
+  status       TEXT
 );
 CREATE TABLE subjects (
   subject_id   INTEGER PRIMARY KEY,
   subject_name TEXT NOT NULL,
-  category     TEXT
+  category     TEXT,
+  credits      INTEGER,
+  is_required  INTEGER
 );
-CREATE TABLE scores (
-  score_id   INTEGER PRIMARY KEY,
+CREATE TABLE teacher_subjects (
+  ts_id      INTEGER PRIMARY KEY,
+  teacher_id INTEGER REFERENCES teachers(teacher_id),
+  subject_id INTEGER REFERENCES subjects(subject_id)
+);
+CREATE TABLE exams (
+  exam_id   INTEGER PRIMARY KEY,
+  exam_name TEXT NOT NULL,
+  exam_type TEXT,
+  term      TEXT,
+  exam_date TEXT
+);
+CREATE TABLE exam_results (
+  result_id  INTEGER PRIMARY KEY,
+  exam_id    INTEGER REFERENCES exams(exam_id),
   student_id INTEGER REFERENCES students(student_id),
   subject_id INTEGER REFERENCES subjects(subject_id),
-  score      INTEGER,
-  term       TEXT
+  score      INTEGER
 );
-CREATE TABLE clubs (
-  club_id   INTEGER PRIMARY KEY,
-  club_name TEXT NOT NULL,
-  category  TEXT
-);
-CREATE TABLE club_members (
-  member_id  INTEGER PRIMARY KEY,
-  student_id INTEGER REFERENCES students(student_id),
-  club_id    INTEGER REFERENCES clubs(club_id),
-  role       TEXT
-);
-CREATE TABLE events (
-  event_id   INTEGER PRIMARY KEY,
-  event_name TEXT NOT NULL,
-  event_date TEXT,
-  location   TEXT
+CREATE TABLE attendances (
+  attendance_id INTEGER PRIMARY KEY,
+  student_id    INTEGER REFERENCES students(student_id),
+  attend_date   TEXT,
+  status        TEXT
 );
 `
 
 /** シードデータ */
 export const SEED_SQL = `
-INSERT INTO classes VALUES
-  (1, 1, '1組', '山田先生'),
-  (2, 1, '2組', '佐藤先生'),
-  (3, 3, '1組', '鈴木先生');
+INSERT INTO departments VALUES
+  (1, '普通科',   1998),
+  (2, '理数科',   2005),
+  (3, '国際科',   2012),
+  (4, '体育科',   2015);
+
+INSERT INTO teachers VALUES
+  (1,  '斎藤 健一', 1, '2010-04-01', 1),
+  (2,  '大野 聡子', 1, '2013-04-01', 1),
+  (3,  '前田 直樹', 2, '2008-04-01', 1),
+  (4,  '橋本 由美', 2, '2016-04-01', 1),
+  (5,  '石川 浩二', 3, '2012-04-01', 1),
+  (6,  '村上 千春', 3, '2019-04-01', 1),
+  (7,  '福田 隆',   4, '2006-04-01', 1),
+  (8,  '岡田 美和', 1, '2021-04-01', 1),
+  (9,  '西村 和彦', 2, '2000-04-01', 0),
+  (10, '藤井 恵子', 4, '2023-04-01', 1);
+
+INSERT INTO classrooms VALUES
+  (1, 1, 'A', 1, 1),
+  (2, 1, 'B', 1, 2),
+  (3, 2, 'A', 2, 3),
+  (4, 2, 'B', 2, 4),
+  (5, 3, 'A', 3, 5),
+  (6, 3, 'B', 4, 7);
 
 INSERT INTO students VALUES
-  (1,  '花海 咲季',   16, 1, '外部生', '04月02日', 'A',  152, 45, '左',   '愛知県',     '寮'),
-  (2,  '月村 手毬',   15, 1, '内部生', '06月03日', 'AB', 162, 51, '右',   '京都府',     '寮'),
-  (3,  '藤田 ことね', 15, 1, '内部生', '04月29日', 'O',  156, 40, '右',   '埼玉県',     '寮'),
-  (4,  '姫崎 莉波',   17, 3, '外部生', '03月05日', 'A',  166, 56, '右',   '福岡県',     '寮'),
-  (5,  '紫雲 清夏',   15, 1, '外部生', '11月11日', 'O',  168, 54, '左',   '北海道',     '寮'),
-  (6,  '篠澤 広',     15, 2, '外部生', '12月21日', 'AB', 159, 41, '左',   '秋田県',     '寮'),
-  (7,  '葛城 リーリヤ', 15, 1, '外部生', '07月24日', 'B',  161, 43, '右',   'スウェーデン', '寮'),
-  (8,  '倉本 千奈',   15, 2, '外部生', '08月01日', 'O',  148, 43, '右',   '神奈川県',   '別荘'),
-  (9,  '有村 麻央',   17, 3, '外部生', '01月18日', 'A',  157, 46, '右',   '兵庫県',     '寮'),
-  (10, '花海 佑芽',   15, 2, '外部生', '04月01日', 'AB', 158, 50, '右',   '愛知県',     '寮'),
-  (11, '十王 星南',   17, 3, '内部生', '12月07日', 'A',  170, 54, '両',   '東京都',     '自宅'),
-  (12, '秦谷 美鈴',   15, 2, '内部生', '02月06日', 'B',  160, 42, '右',   '京都府',     '寮'),
-  (13, '雨夜 燕',     17, 3, '内部生', '05月20日', 'A',  169, 51, '右',   '東京都',     '自宅'),
-  (14, '賀陽 燐羽',  15, NULL, '内部生', NULL, NULL, 154, NULL, NULL, NULL, NULL);
+  (1,  '青木 遥',   1, 2023, '2007-05-14', 'F', '在籍'),
+  (2,  '伊藤 大輔', 1, 2023, '2007-08-02', 'M', '在籍'),
+  (3,  '上田 彩',   1, 2023, '2008-01-20', 'F', '在籍'),
+  (4,  '遠藤 翔太', 2, 2023, '2007-11-11', 'M', '在籍'),
+  (5,  '小川 美咲', 2, 2023, '2007-03-30', 'F', '休学'),
+  (6,  '加藤 蓮',   3, 2023, '2007-07-07', 'M', '在籍'),
+  (7,  '木村 さくら', 3, 2023, '2008-02-18', 'F', '在籍'),
+  (8,  '工藤 悠真', 3, 2023, '2007-09-25', 'M', '在籍'),
+  (9,  '小林 結衣', 4, 2023, '2007-12-05', 'F', '在籍'),
+  (10, '佐藤 陽菜', 4, 2023, '2008-04-14', 'F', '在籍'),
+  (11, '鈴木 颯太', 5, 2022, '2006-06-21', 'M', '在籍'),
+  (12, '高橋 美月', 5, 2022, '2006-10-10', 'F', '在籍'),
+  (13, '田中 健', 5, 2022, '2006-01-29', 'M', '退学'),
+  (14, '中村 莉子', 6, 2022, '2006-08-17', 'F', '在籍'),
+  (15, '西 大和',   6, 2022, '2006-05-03', 'M', '在籍'),
+  (16, '野口 愛', 1, 2024, '2008-07-19', 'F', '在籍'),
+  (17, '橋本 樹', 2, 2024, '2008-11-28', 'M', '在籍'),
+  (18, '長谷川 凛', 3, 2024, '2008-09-09', 'F', '在籍'),
+  (19, '平野 翼', 4, 2024, '2008-02-02', 'M', '在籍'),
+  (20, '松井 優花', 4, 2024, '2008-12-24', 'F', '在籍');
 
 INSERT INTO subjects VALUES
-  (1, '国語',     '文系'),
-  (2, '数学',     '理系'),
-  (3, '英語',     '文系'),
-  (4, '理科',     '理系'),
-  (5, '社会',     '文系'),
-  (6, '音楽',     '芸術'),
-  (7, '体育',     '実技'),
-  (8, 'プログラミング', '理系');
+  (1, '国語',     '文系', 4, 1),
+  (2, '数学I',    '理系', 4, 1),
+  (3, '数学II',   '理系', 3, 0),
+  (4, '英語',     '文系', 4, 1),
+  (5, '物理',     '理系', 3, 0),
+  (6, '化学',     '理系', 3, 0),
+  (7, '世界史',   '文系', 2, 0),
+  (8, '保健体育', '実技', 2, 1),
+  (9, '情報',     '理系', 2, 1);
 
-INSERT INTO scores VALUES
-  (1,  1,  1, 88, '前期'), (2,  1,  2, 72, '前期'), (3,  1,  3, 91, '前期'), (4,  1,  4, 68, '前期'), (5,  1,  6, 95, '前期'),
-  (6,  2,  1, 76, '前期'), (7,  2,  2, 84, '前期'), (8,  2,  3, 80, '前期'), (9,  2,  6, 99, '前期'), (10, 2,  7, 88, '前期'),
-  (11, 3,  1, 92, '前期'), (12, 3,  2, 78, '前期'), (13, 3,  3, 85, '前期'), (14, 3,  6, 97, '前期'), (15, 3,  8, 90, '前期'),
-  (16, 4,  1, 80, '前期'), (17, 4,  2, 65, '前期'), (18, 4,  3, 77, '前期'), (19, 4,  5, 82, '前期'), (20, 4,  6, 88, '前期'),
-  (21, 5,  1, 70, '前期'), (22, 5,  2, 90, '前期'), (23, 5,  3, 74, '前期'), (24, 5,  4, 93, '前期'), (25, 5,  8, 88, '前期'),
-  (26, 6,  1, 65, '前期'), (27, 6,  2, 88, '前期'), (28, 6,  3, 69, '前期'), (29, 6,  4, 82, '前期'), (30, 6,  8, 91, '前期'),
-  (31, 7,  1, 78, '前期'), (32, 7,  2, 55, '前期'), (33, 7,  3, 96, '前期'), (34, 7,  5, 74, '前期'), (35, 7,  6, 85, '前期'),
-  (36, 8,  1, 82, '前期'), (37, 8,  2, 60, '前期'), (38, 8,  3, 88, '前期'), (39, 8,  7, 92, '前期'), (40, 8,  6, 78, '前期'),
-  (41, 9,  1, 90, '前期'), (42, 9,  2, 75, '前期'), (43, 9,  3, 83, '前期'), (44, 9,  5, 91, '前期'), (45, 9,  6, 94, '前期'),
-  (46, 10, 1, 85, '前期'), (47, 10, 2, 70, '前期'), (48, 10, 3, 88, '前期'), (49, 10, 6, 96, '前期'), (50, 10, 7, 80, '前期'),
-  (51, 11, 1, 95, '前期'), (52, 11, 2, 88, '前期'), (53, 11, 3, 92, '前期'), (54, 11, 4, 85, '前期'), (55, 11, 8, 97, '前期'),
-  (56, 12, 1, 73, '前期'), (57, 12, 2, 91, '前期'), (58, 12, 3, 78, '前期'), (59, 12, 4, 86, '前期'), (60, 12, 8, 89, '前期'),
-  (61, 13, 1, 88, '前期'), (62, 13, 2, 82, '前期'), (63, 13, 3, 90, '前期'), (64, 13, 5, 87, '前期'), (65, 13, 6, 91, '前期');
+INSERT INTO teacher_subjects VALUES
+  (1,  1, 1), (2,  1, 7),
+  (3,  2, 4),
+  (4,  3, 2), (5,  3, 3),
+  (6,  4, 5), (7,  4, 6),
+  (8,  5, 4), (9,  5, 7),
+  (10, 6, 1),
+  (11, 7, 8),
+  (12, 8, 9),
+  (13, 10, 8);
 
-INSERT INTO clubs VALUES
-  (1, 'ライトミュージック部', '音楽'),
-  (2, '演劇部',             '芸術'),
-  (3, '陸上部',             '運動'),
-  (4, 'バスケットボール部',  '運動'),
-  (5, '料理部',             '文化'),
-  (6, '写真部',             '文化'),
-  (7, '合唱部',             '音楽');
+INSERT INTO exams VALUES
+  (1, '前期中間', '中間', '前期', '2024-05-20'),
+  (2, '前期期末', '期末', '前期', '2024-07-10'),
+  (3, '後期中間', '中間', '後期', '2024-11-18'),
+  (4, '後期期末', '期末', '後期', '2025-02-12');
 
-INSERT INTO club_members VALUES
-  (1,  1,  1, '部長'),
-  (2,  2,  1, '副部長'),
-  (3,  3,  1, '部員'),
-  (4,  5,  1, '部員'),
-  (5,  7,  1, '部員'),
-  (6,  4,  2, '部長'),
-  (7,  9,  2, '副部長'),
-  (8,  13, 2, '部員'),
-  (9,  6,  3, '部員'),
-  (10, 11, 3, '部員'),
-  (11, 8,  4, '部員'),
-  (12, 10, 5, '部員'),
-  (13, 12, 6, '部員'),
-  (14, 4,  7, '部員'),
-  (15, 9,  7, '部員');
+-- exam_results: 試験1・2について、在籍生徒の一部に主要4科目(1,2,4,9)の点数を付与
+INSERT INTO exam_results VALUES
+  -- 前期中間(exam 1)
+  (1,  1, 1, 1, 72), (2,  1, 1, 2, 65), (3,  1, 1, 4, 80), (4,  1, 1, 9, 88),
+  (5,  1, 2, 1, 90), (6,  1, 2, 2, 78), (7,  1, 2, 4, 85), (8,  1, 2, 9, 70),
+  (9,  1, 3, 1, 55), (10, 1, 3, 2, 60), (11, 1, 3, 4, 68), (12, 1, 3, 9, 72),
+  (13, 1, 4, 2, 95), (14, 1, 4, 5, 91), (15, 1, 4, 6, 88), (16, 1, 4, 9, 93),
+  (17, 1, 6, 1, 83), (18, 1, 6, 4, 77), (19, 1, 6, 7, 80), (20, 1, 6, 9, 85),
+  (21, 1, 7, 1, 68), (22, 1, 7, 4, 72), (23, 1, 7, 7, 90), (24, 1, 7, 9, 66),
+  (25, 1, 11, 2, 100),(26, 1, 11, 5, 95),(27, 1, 11, 6, 92),(28, 1, 11, 9, 98),
+  (29, 1, 14, 1, 76), (30, 1, 14, 4, 82), (31, 1, 14, 8, 88), (32, 1, 14, 9, 74),
+  -- 前期期末(exam 2)
+  (33, 2, 1, 1, 78), (34, 2, 1, 2, 70), (35, 2, 1, 4, 82), (36, 2, 1, 9, 90),
+  (37, 2, 2, 1, 88), (38, 2, 2, 2, 80), (39, 2, 2, 4, 86), (40, 2, 2, 9, 75),
+  (41, 2, 3, 1, 60), (42, 2, 3, 2, 58), (43, 2, 3, 4, 70), (44, 2, 3, 9, 68),
+  (45, 2, 4, 2, 98), (46, 2, 4, 5, 94), (47, 2, 4, 6, 90), (48, 2, 4, 9, 96),
+  (49, 2, 6, 1, 85), (50, 2, 6, 4, 79), (51, 2, 6, 7, 83), (52, 2, 6, 9, 88),
+  (53, 2, 7, 1, 72), (54, 2, 7, 4, 75), (55, 2, 7, 7, 92), (56, 2, 7, 9, 70),
+  (57, 2, 11, 2, 99),(58, 2, 11, 5, 97),(59, 2, 11, 6, 95),(60, 2, 11, 9, 100),
+  (61, 2, 14, 1, 80), (62, 2, 14, 4, 85), (63, 2, 14, 8, 90), (64, 2, 14, 9, 78);
 
-INSERT INTO events VALUES
-  (1, '入学式',     '2024-04-08', '体育館'),
-  (2, '体育祭',     '2024-05-25', 'グラウンド'),
-  (3, '校内音楽祭', '2024-07-12', '大ホール'),
-  (4, '夏季合宿',   '2024-08-10', '軽井沢'),
-  (5, '文化祭',     '2024-10-19', '校内全域'),
-  (6, '球技大会',   '2024-11-30', '体育館'),
-  (7, '修学旅行',   '2024-12-05', '京都・奈良'),
-  (8, '卒業式',     '2025-03-01', '体育館');
+-- attendances: 2024-06-03〜06-07 の5日分、一部生徒の出欠
+INSERT INTO attendances VALUES
+  (1,  1, '2024-06-03', '出席'), (2,  1, '2024-06-04', '出席'), (3,  1, '2024-06-05', '欠席'), (4,  1, '2024-06-06', '出席'), (5,  1, '2024-06-07', '出席'),
+  (6,  2, '2024-06-03', '出席'), (7,  2, '2024-06-04', '遅刻'), (8,  2, '2024-06-05', '出席'), (9,  2, '2024-06-06', '出席'), (10, 2, '2024-06-07', '出席'),
+  (11, 3, '2024-06-03', '欠席'), (12, 3, '2024-06-04', '欠席'), (13, 3, '2024-06-05', '欠席'), (14, 3, '2024-06-06', '出席'), (15, 3, '2024-06-07', '出席'),
+  (16, 4, '2024-06-03', '出席'), (17, 4, '2024-06-04', '出席'), (18, 4, '2024-06-05', '出席'), (19, 4, '2024-06-06', '出席'), (20, 4, '2024-06-07', '出席'),
+  (21, 6, '2024-06-03', '出席'), (22, 6, '2024-06-04', '出席'), (23, 6, '2024-06-05', '遅刻'), (24, 6, '2024-06-06', '欠席'), (25, 6, '2024-06-07', '出席'),
+  (26, 7, '2024-06-03', '出席'), (27, 7, '2024-06-04', '出席'), (28, 7, '2024-06-05', '出席'), (29, 7, '2024-06-06', '出席'), (30, 7, '2024-06-07', '欠席'),
+  (31, 11,'2024-06-03', '出席'), (32, 11,'2024-06-04', '出席'), (33, 11,'2024-06-05', '出席'), (34, 11,'2024-06-06', '出席'), (35, 11,'2024-06-07', '出席'),
+  (36, 14,'2024-06-03', '遅刻'), (37, 14,'2024-06-04', '出席'), (38, 14,'2024-06-05', '出席'), (39, 14,'2024-06-06', '欠席'), (40, 14,'2024-06-07', '出席');
 `
 
 /** ER図テーブル定義 */
 export const ER_TABLES = [
-  // 上段
-  { id: 'classes',      label: 'classes',      x: 20,  y: 20,  w: 210, cols: ['class_id PK', 'grade', 'class_name', 'homeroom'] },
-  { id: 'students',     label: 'students',     x: 280, y: 20,  w: 230, cols: ['student_id PK', 'name', 'class_id FK', 'age', 'admission', 'birthday', 'blood_type', 'height_cm', 'weight_kg', 'dominant_hand', 'hometown', 'residence'] },
-  { id: 'subjects',     label: 'subjects',     x: 560, y: 20,  w: 220, cols: ['subject_id PK', 'subject_name', 'category'] },
-  { id: 'scores',       label: 'scores',       x: 830, y: 20,  w: 220, cols: ['score_id PK', 'student_id FK', 'subject_id FK', 'score', 'term'] },
-  // 下段
-  { id: 'clubs',        label: 'clubs',        x: 20,  y: 430, w: 210, cols: ['club_id PK', 'club_name', 'category'] },
-  { id: 'club_members', label: 'club_members', x: 280, y: 430, w: 220, cols: ['member_id PK', 'student_id FK', 'club_id FK', 'role'] },
-  { id: 'events',       label: 'events',       x: 560, y: 430, w: 220, cols: ['event_id PK', 'event_name', 'event_date', 'location'] },
+  { id: 'departments',     label: 'departments',     x: 20,  y: 20,  w: 210, cols: ['dept_id PK', 'dept_name', 'est_year'] },
+  { id: 'teachers',        label: 'teachers',        x: 280, y: 20,  w: 220, cols: ['teacher_id PK', 'name', 'dept_id FK', 'hire_date', 'is_active'] },
+  { id: 'classrooms',      label: 'classrooms',      x: 560, y: 20,  w: 220, cols: ['classroom_id PK', 'grade', 'class_label', 'dept_id FK', 'teacher_id FK'] },
+  { id: 'students',        label: 'students',        x: 840, y: 20,  w: 230, cols: ['student_id PK', 'name', 'classroom_id FK', 'enroll_year', 'birth_date', 'gender', 'status'] },
+  { id: 'subjects',        label: 'subjects',        x: 20,  y: 360, w: 220, cols: ['subject_id PK', 'subject_name', 'category', 'credits', 'is_required'] },
+  { id: 'teacher_subjects',label: 'teacher_subjects',x: 300, y: 360, w: 220, cols: ['ts_id PK', 'teacher_id FK', 'subject_id FK'] },
+  { id: 'exams',           label: 'exams',           x: 580, y: 360, w: 220, cols: ['exam_id PK', 'exam_name', 'exam_type', 'term', 'exam_date'] },
+  { id: 'exam_results',    label: 'exam_results',    x: 300, y: 560, w: 230, cols: ['result_id PK', 'exam_id FK', 'student_id FK', 'subject_id FK', 'score'] },
+  { id: 'attendances',     label: 'attendances',     x: 580, y: 560, w: 220, cols: ['attendance_id PK', 'student_id FK', 'attend_date', 'status'] },
 ] as const
 
 /** ER図リレーション定義 */
 export const ER_RELATIONS = [
-  { from: 'students',     to: 'classes',  label: 'class_id' },
-  { from: 'scores',       to: 'students', label: 'student_id' },
-  { from: 'scores',       to: 'subjects', label: 'subject_id' },
-  { from: 'club_members', to: 'students', label: 'student_id' },
-  { from: 'club_members', to: 'clubs',    label: 'club_id' },
+  { from: 'teachers',         to: 'departments', label: 'dept_id' },
+  { from: 'classrooms',       to: 'departments', label: 'dept_id' },
+  { from: 'classrooms',       to: 'teachers',    label: 'teacher_id' },
+  { from: 'students',         to: 'classrooms',  label: 'classroom_id' },
+  { from: 'teacher_subjects', to: 'teachers',    label: 'teacher_id' },
+  { from: 'teacher_subjects', to: 'subjects',    label: 'subject_id' },
+  { from: 'exam_results',     to: 'exams',       label: 'exam_id' },
+  { from: 'exam_results',     to: 'students',    label: 'student_id' },
+  { from: 'exam_results',     to: 'subjects',    label: 'subject_id' },
+  { from: 'attendances',      to: 'students',    label: 'student_id' },
 ] as const
 
 /** 全テーブル名一覧 */
 export const TABLE_NAMES = [
-  'classes',
+  'departments',
+  'teachers',
+  'classrooms',
   'students',
   'subjects',
-  'scores',
-  'clubs',
-  'club_members',
-  'events',
+  'teacher_subjects',
+  'exams',
+  'exam_results',
+  'attendances',
 ] as const
