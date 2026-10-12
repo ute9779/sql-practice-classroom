@@ -1,0 +1,16 @@
+{
+  "name": "sql-training",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "generate": "nuxt generate"
+  },
+  "dependencies": {
+    "@nuxtjs/tailwindcss": "6.12.1",
+    "nuxt": "3.13.2",
+    "sql.js": "1.10.2"
+  }
+}
