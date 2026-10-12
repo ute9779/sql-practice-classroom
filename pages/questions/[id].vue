@@ -213,8 +213,8 @@ const hasResult = computed(() => !!execError.value || execResult.value.length > 
               <ResultTable :result="execResult" />
             </div>
 
-            <!-- 模範解答 -->
-            <div v-if="verdict === 'wrong' || verdict === 'missing'" class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <!-- 模範解答（判定後は正解・不正解問わず常に表示） -->
+            <div v-if="verdict" class="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <p class="text-xs font-bold text-slate-500 mb-2">模範解答</p>
               <pre class="font-mono-code text-xs text-blue-800 whitespace-pre-wrap">{{ question.answer }}</pre>
             </div>

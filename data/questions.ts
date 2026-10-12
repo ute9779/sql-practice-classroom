@@ -205,7 +205,7 @@ export const QUESTIONS: Question[] = [
     desc: 'exam_results テーブルから subject_id ごとの平均点を計算し、subject_id と avg_score という名前で取得してください。',
     hint: 'GROUP BY subject_id と AVG(score) を使います。',
     answer: 'SELECT subject_id, AVG(score) AS avg_score\nFROM exam_results\nGROUP BY subject_id;',
-    validate: (res) => hasCols(res, 'subject_id', 'avg_score') && rowCount(res) >= 5,
+    validate: (res) => hasCols(res, 'subject_id', 'avg_score') && rowCount(res) === 8,
   },
   {
     id: 17, level: '上級', category: '集計',
@@ -214,7 +214,7 @@ export const QUESTIONS: Question[] = [
     hint: 'GROUP BY のあとに HAVING AVG(score) >= 85 で絞り込みます。',
     answer: 'SELECT subject_id, AVG(score) AS avg_score\nFROM exam_results\nGROUP BY subject_id\nHAVING AVG(score) >= 85;',
     requiredKeywords: [{ keyword: 'HAVING', label: 'HAVING 句' }],
-    validate: (res) => hasCols(res, 'subject_id', 'avg_score') && rowCount(res) >= 1 &&
+    validate: (res) => hasCols(res, 'subject_id', 'avg_score') && rowCount(res) === 4 &&
                        res[0].values.every(r => (r[1] as number) >= 85),
   },
   {
@@ -295,7 +295,7 @@ export const QUESTIONS: Question[] = [
     hint: 'WHERE score = (SELECT MAX(score) FROM exam_results)',
     answer: 'SELECT student_id, subject_id, score\nFROM exam_results\nWHERE score = (SELECT MAX(score) FROM exam_results);',
     requiredKeywords: [{ keyword: '(SELECT', label: 'サブクエリ' }],
-    validate: (res) => hasCols(res, 'student_id', 'subject_id', 'score') && rowCount(res) >= 1 &&
+    validate: (res) => hasCols(res, 'student_id', 'subject_id', 'score') && rowCount(res) === 2 &&
                        res[0].values.every(r => r[2] === 100),
   },
   {
@@ -305,7 +305,7 @@ export const QUESTIONS: Question[] = [
     hint: 'HAVING AVG(score) > (SELECT AVG(score) FROM exam_results)',
     answer: 'SELECT student_id, AVG(score) AS avg_score\nFROM exam_results\nGROUP BY student_id\nHAVING AVG(score) > (SELECT AVG(score) FROM exam_results);',
     requiredKeywords: [{ keyword: '(SELECT', label: 'サブクエリ' }, { keyword: 'HAVING', label: 'HAVING 句' }],
-    validate: (res) => hasCols(res, 'student_id', 'avg_score') && rowCount(res) >= 1,
+    validate: (res) => hasCols(res, 'student_id', 'avg_score') && rowCount(res) === 3,
   },
   {
     id: 28, level: '上級', category: 'サブクエリ',
@@ -323,7 +323,8 @@ export const QUESTIONS: Question[] = [
     hint: 'WHERE s.enroll_year > (SELECT AVG(s2.enroll_year) FROM students s2 WHERE s2.classroom_id = s.classroom_id)',
     answer: 'SELECT s.name, s.enroll_year\nFROM students s\nWHERE s.enroll_year > (\n  SELECT AVG(s2.enroll_year)\n  FROM students s2\n  WHERE s2.classroom_id = s.classroom_id\n);',
     requiredKeywords: [{ keyword: '(SELECT', label: '相関サブクエリ' }],
-    validate: (res) => hasCols(res, 'name', 'enroll_year') && rowCount(res) >= 0 && Array.isArray(res),
+    validate: (res) => hasCols(res, 'name', 'enroll_year') && rowCount(res) === 5 &&
+                       res[0].values.every(r => r[1] === 2024),
   },
 
   // ═══════════ DDL ═══════════
@@ -433,7 +434,7 @@ export const QUESTIONS: Question[] = [
     desc: 'exam_results と students と classrooms を結合し、classroom_id ごとの平均点（avg_score）を取得してください。',
     hint: 'exam_results → students → classrooms を JOIN し、GROUP BY c.classroom_id。',
     answer: 'SELECT c.classroom_id, AVG(er.score) AS avg_score\nFROM exam_results er\nINNER JOIN students s ON er.student_id = s.student_id\nINNER JOIN classrooms c ON s.classroom_id = c.classroom_id\nGROUP BY c.classroom_id;',
-    validate: (res) => hasCols(res, 'classroom_id', 'avg_score') && rowCount(res) >= 1,
+    validate: (res) => hasCols(res, 'classroom_id', 'avg_score') && rowCount(res) === 5,
   },
   {
     id: 43, level: '上級', category: '集計',
@@ -442,7 +443,7 @@ export const QUESTIONS: Question[] = [
     hint: "AVG(CASE WHEN status = '出席' THEN 1.0 ELSE 0 END) * 100 で出席率を計算し、HAVING で絞り込みます。",
     answer: "SELECT student_id,\n       AVG(CASE WHEN status = '出席' THEN 1.0 ELSE 0 END) * 100 AS attend_rate\nFROM attendances\nGROUP BY student_id\nHAVING AVG(CASE WHEN status = '出席' THEN 1.0 ELSE 0 END) * 100 < 80;",
     requiredKeywords: [{ keyword: 'HAVING', label: 'HAVING 句' }],
-    validate: (res) => hasCols(res, 'student_id', 'attend_rate') && rowCount(res) >= 1 &&
+    validate: (res) => hasCols(res, 'student_id', 'attend_rate') && rowCount(res) === 3 &&
                        res[0].values.every(r => (r[1] as number) < 80),
   },
   {
@@ -451,7 +452,7 @@ export const QUESTIONS: Question[] = [
     desc: 'exam_results と subjects を結合し、科目名 subject_name ごとの受験者数（result_count）を取得してください。',
     hint: 'INNER JOIN subjects のあと GROUP BY sub.subject_name。',
     answer: 'SELECT sub.subject_name, COUNT(*) AS result_count\nFROM exam_results er\nINNER JOIN subjects sub ON er.subject_id = sub.subject_id\nGROUP BY sub.subject_name;',
-    validate: (res) => hasCols(res, 'subject_name', 'result_count') && rowCount(res) >= 1,
+    validate: (res) => hasCols(res, 'subject_name', 'result_count') && rowCount(res) === 8,
   },
   {
     id: 45, level: '上級', category: 'サブクエリ',
