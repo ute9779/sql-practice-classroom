@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SqlResult } from '~/composables/useDatabase'
+import type { SqlResult } from '~/utils/judge'
 
 const props = defineProps<{
   result: SqlResult

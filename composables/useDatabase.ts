@@ -1,11 +1,26 @@
 import { SCHEMA_SQL, SEED_SQL } from '~/data/schema'
+import type { SqlResult, QueryFn } from '~/utils/judge'
 
-export type SqlResult = { columns: string[]; values: (string | number | null)[][] }[]
-
-// --- シングルトンDB（アプリ全体で共有・読み取り専用の基準DB）---
+// --- シングルトンDB（アプリ全体で共有する基準DB）---
+// ユーザーが入力した SQL は絶対にこの基準DBでは実行しない（withSandbox を使うこと）
 let _db: any = null
 let _SQL: any = null          // sql.js コンストラクタ
+let _snapshot: Uint8Array | null = null   // 初期化直後の基準DBのバイナリ
 let _initPromise: Promise<void> | null = null
+
+/** CDN が応答しないときに、ローディングが回り続けないようにするための上限時間 */
+const INIT_TIMEOUT_MS = 30_000
+
+/** 一定時間で終わらない処理を失敗扱いにする */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) },
+    )
+  })
+}
 
 function loadSqlJsScript(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -13,28 +28,35 @@ function loadSqlJsScript(): Promise<void> {
     const script = document.createElement('script')
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js'
     script.onload  = () => resolve()
-    script.onerror = () => reject(new Error('sql-wasm.js のロードに失敗しました'))
+    script.onerror = () => {
+      script.remove()   // 再試行時に失敗した script タグが残らないようにする
+      reject(new Error('sql-wasm.js のロードに失敗しました'))
+    }
     document.head.appendChild(script)
   })
 }
 
 export function useDatabase() {
-  const isReady    = useState<boolean>('db:ready',   () => false)
-  const initMessage = useState<string>('db:initMsg', () => '')
+  const isReady     = useState<boolean>('db:ready',   () => false)
+  const initMessage = useState<string>('db:initMsg',  () => '')
+  /** 初期化に失敗したときのエラー内容（空文字なら失敗していない） */
+  const initError   = useState<string>('db:initErr',  () => '')
 
-  async function init() {
-    if (_db) { isReady.value = true; return }
-    if (_initPromise) { await _initPromise; isReady.value = true; return }
-
-    _initPromise = (async () => {
+  /** 基準DBの構築。途中で失敗したら中途半端な状態を捨てて例外を投げる */
+  async function build() {
+    try {
       initMessage.value = 'sql.js WASM をロード中…'
-      await loadSqlJsScript()
+      await withTimeout(loadSqlJsScript(), INIT_TIMEOUT_MS, 'sql-wasm.js の読み込みがタイムアウトしました')
 
       const initSqlJs = (window as any).initSqlJs as (config: object) => Promise<any>
-      _SQL = await initSqlJs({
-        locateFile: (file: string) =>
-          `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${file}`,
-      })
+      _SQL = await withTimeout(
+        initSqlJs({
+          locateFile: (file: string) =>
+            `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${file}`,
+        }),
+        INIT_TIMEOUT_MS,
+        'sql.js の初期化がタイムアウトしました',
+      )
 
       initMessage.value = 'テーブルを作成中…'
       _db = new _SQL.Database()
@@ -43,15 +65,48 @@ export function useDatabase() {
       initMessage.value = 'サンプルデータを挿入中…'
       _db.run(SEED_SQL)
 
-      initMessage.value = '完了'
-      isReady.value = true
-    })()
+      // サンドボックス生成用に、初期状態のバイナリを1回だけ取得して保持する
+      _snapshot = _db.export()
 
-    await _initPromise
+      initMessage.value = '完了'
+    } catch (e) {
+      try { _db?.close() } catch { /* 既に閉じている */ }
+      _db = null
+      _snapshot = null
+      throw e
+    }
   }
 
   /**
-   * 通常の SELECT 用：メインDBで実行（DBを変更しない）
+   * DB を初期化する。失敗してもここでは例外を投げず、initError に内容を入れる。
+   * 失敗後にもう一度呼べば、最初からやり直す（再試行）。
+   */
+  async function init() {
+    if (_db && _snapshot) { isReady.value = true; initError.value = ''; return }
+
+    isReady.value = false
+    initError.value = ''
+
+    if (!_initPromise) {
+      const p = build()
+      _initPromise = p
+      // 失敗した Promise を保持し続けると再試行できないので破棄する
+      p.catch(() => { if (_initPromise === p) _initPromise = null })
+    }
+
+    try {
+      await _initPromise
+      isReady.value = true
+    } catch (e: any) {
+      initError.value = e?.message ?? String(e)
+      initMessage.value = ''
+      isReady.value = false
+    }
+  }
+
+  /**
+   * アプリ内部の固定SQL専用（テーブル参照画面の SELECT * など）。基準DBで直接実行する。
+   * ユーザーが入力した SQL には使わないこと。
    */
   function exec(sql: string): SqlResult {
     if (!_db) throw new Error('DB が初期化されていません')
@@ -59,24 +114,21 @@ export function useDatabase() {
   }
 
   /**
-   * DDL/DML 用サンドボックス実行：
-   * メインDBのバイナリスナップショットから一時コピーを作成して実行する。
-   * 実行後にコピーを破棄するため、メインDBは元のままで保たれる。
+   * ユーザーの SQL 用サンドボックス：
+   * 初期状態のスナップショットから使い捨てのDBを作り、fn に実行関数を渡す。
+   * fn の終了後（例外時も）DBは必ず破棄されるので、基準DBは変更されない。
+   * 1回の withSandbox の中では変更が引き継がれる（DML 実行後の状態確認などに使う）。
    */
-  function execSandbox(sql: string): SqlResult {
-    if (!_db || !_SQL) throw new Error('DB が初期化されていません')
+  function withSandbox<T>(fn: (run: QueryFn) => T): T {
+    if (!_SQL || !_snapshot) throw new Error('DB が初期化されていません')
 
-    // メインDBの現在のバイナリをエクスポートして新しいDBインスタンスに読み込む
-    const snapshot = _db.export()                     // Uint8Array
-    const sandbox  = new _SQL.Database(snapshot)      // スナップショットから生成
-
+    const sandbox = new _SQL.Database(_snapshot.slice())   // 毎回コピーから生成
     try {
-      const result = sandbox.exec(sql) as SqlResult
-      return result
+      return fn((sql: string) => sandbox.exec(sql) as SqlResult)
     } finally {
       sandbox.close()   // 必ず後片付け
     }
   }
 
-  return { isReady, initMessage, init, exec, execSandbox }
+  return { isReady, initMessage, initError, init, exec, withSandbox }
 }

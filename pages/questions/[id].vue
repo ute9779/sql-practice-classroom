@@ -3,11 +3,12 @@ import { QUESTIONS, CATEGORY_STYLE, LEVEL_STYLE } from '~/data/questions'
 import { useDatabase } from '~/composables/useDatabase'
 import { useScores } from '~/composables/useScores'
 import { useFilter } from '~/composables/useFilter'
-import type { SqlResult } from '~/composables/useDatabase'
+import { runAndJudge } from '~/utils/judge'
+import type { SqlResult } from '~/utils/judge'
 
 const route = useRoute()
 const router = useRouter()
-const { exec, execSandbox, isReady, init } = useDatabase()
+const { withSandbox, isReady, init } = useDatabase()
 const { scores, setScore } = useScores()
 const { filteredQuestions, adjacentIds } = useFilter()
 
@@ -30,7 +31,12 @@ const execResult = ref<SqlResult>([])
 const execError = ref('')
 const verdict = ref<'correct' | 'wrong' | 'missing' | null>(null)
 const missingLabels = ref<string[]>([]) // 不足している指定構文のラベル
+const wrongReason = ref('')              // 不正解の理由（模範解答の中身は含まない）
 const judged = ref(false)
+const showAnswer = ref(false)            // 不正解のときの模範解答の開閉（初期は閉じる）
+
+// 模範解答は、正解なら常に表示。不正解のときは開閉ボタンで開いたときだけ表示する
+const answerOpen = computed(() => verdict.value === 'correct' || showAnswer.value)
 
 watch(qId, () => {
   sqlInput.value = ''
@@ -38,49 +44,36 @@ watch(qId, () => {
   execError.value = ''
   verdict.value = null
   missingLabels.value = []
+  wrongReason.value = ''
   judged.value = false
   showHint.value = false
+  showAnswer.value = false
 })
 
 function runSQL(judge: boolean) {
   const sql = sqlInput.value.trim()
-  if (!sql || !isReady.value) return
+  if (!sql || !isReady.value || !question.value) return
   execError.value = ''
   execResult.value = []
   verdict.value = null
   missingLabels.value = []
-
-  // DDL・DML はサンドボックスDBで実行（メインDBを汚染しない）
-  const isSandbox = question.value?.category === 'DDL' || question.value?.category === 'DML'
+  wrongReason.value = ''
+  showAnswer.value = false   // 回答し直すたびに模範解答は閉じた状態に戻す
 
   try {
-    execResult.value = isSandbox ? execSandbox(sql) : exec(sql)
+    // どの問題の SQL も使い捨てのサンドボックスDBで実行する（基準DBは変更されない）
+    const out = runAndJudge(question.value, sql, withSandbox, judge)
+    execResult.value = out.result
+
+    if (out.verdict) {
+      verdict.value = out.verdict.status
+      missingLabels.value = out.verdict.missing
+      wrongReason.value = out.verdict.reason
+      judged.value = true
+      setScore(qIndex.value, out.verdict.status === 'correct')
+    }
   } catch (e: any) {
     execError.value = e.message
-    return
-  }
-
-  if (!judge) return
-
-  const q = question.value!
-  const resultOk = q.validate(execResult.value)
-
-  // 指定構文チェック（大文字化して部分一致で判定）
-  const upperSql = sql.toUpperCase()
-  const missing = (q.requiredKeywords ?? []).filter(
-    (k) => !upperSql.includes(k.keyword.toUpperCase())
-  )
-
-  if (resultOk && missing.length > 0) {
-    // 結果は合っているが指定構文を使っていない → 不正解扱い
-    verdict.value = 'missing'
-    missingLabels.value = missing.map((m) => m.label)
-    judged.value = true
-    setScore(qIndex.value, false)
-  } else {
-    verdict.value = resultOk ? 'correct' : 'wrong'
-    judged.value = true
-    setScore(qIndex.value, resultOk)
   }
 }
 
@@ -101,6 +94,9 @@ const hasResult = computed(() => !!execError.value || execResult.value.length > 
 
       <!-- ====== 左カラム（問題・入力・結果） ====== -->
       <section class="xl:col-span-2 flex flex-col gap-5">
+
+        <!-- DB の初期化に失敗したときだけ表示（再試行ボタン付き） -->
+        <DbInitError />
 
         <!-- 問題カード -->
         <div class="bg-white rounded-2xl shadow p-5">
@@ -199,7 +195,7 @@ const hasResult = computed(() => !!execError.value || execResult.value.length > 
                   <template v-else-if="verdict === 'missing'">
                     結果は合っていますが、この問題で指定された <strong>{{ missingLabels.join('・') }}</strong> が使われていません。
                   </template>
-                  <template v-else>SQLの構文は正しいですが、結果が異なります。</template>
+                  <template v-else>{{ wrongReason || 'SQLの構文は正しいですが、結果が異なります。' }}</template>
                 </p>
               </div>
             </div>
@@ -213,10 +209,33 @@ const hasResult = computed(() => !!execError.value || execResult.value.length > 
               <ResultTable :result="execResult" />
             </div>
 
-            <!-- 模範解答（判定後は正解・不正解問わず常に表示） -->
-            <div v-if="verdict" class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <p class="text-xs font-bold text-slate-500 mb-2">模範解答</p>
-              <pre class="font-mono-code text-xs text-blue-800 whitespace-pre-wrap">{{ question.answer }}</pre>
+            <!-- 模範解答：正解のときは常に表示。不正解のときは開閉式（初期は閉じた状態） -->
+            <div v-if="verdict" class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                v-if="verdict !== 'correct'"
+                type="button"
+                class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-100 transition-colors"
+                :aria-expanded="showAnswer"
+                aria-controls="model-answer"
+                @click="showAnswer = !showAnswer"
+              >
+                <span class="text-xs font-bold text-slate-500">模範解答を{{ showAnswer ? '隠す' : '見る' }}</span>
+                <svg
+                  class="w-4 h-4 text-slate-400 transition-transform duration-200"
+                  :class="showAnswer ? 'rotate-180' : ''"
+                  fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              <p v-else class="px-4 pt-4 text-xs font-bold text-slate-500">模範解答</p>
+
+              <Transition name="accordion">
+                <div v-if="answerOpen" id="model-answer" class="px-4 pb-4 pt-2">
+                  <pre class="font-mono-code text-xs text-blue-800 whitespace-pre-wrap">{{ question.answer }}</pre>
+                </div>
+              </Transition>
             </div>
           </div>
         </Transition>

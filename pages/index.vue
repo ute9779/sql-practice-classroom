@@ -4,7 +4,7 @@ import type { Level, Category } from '~/data/questions'
 import { useFilter } from '~/composables/useFilter'
 import { useDatabase } from '~/composables/useDatabase'
 
-const { isReady, initMessage, init } = useDatabase()
+const { isReady, initMessage, initError, init } = useDatabase()
 const {
   selectedLevels, selectedCategories,
   sortKey, sortDir,
@@ -14,7 +14,8 @@ const {
 onMounted(() => init())
 
 const LEVELS:     Level[]    = ['初級', '中級', '上級']
-const CATEGORIES: Category[] = ['SELECT', 'WHERE', '集計', 'JOIN', 'サブクエリ', 'DDL', 'DML']
+// カテゴリ一覧は CATEGORY_STYLE から導出（カテゴリ追加時の更新漏れを防ぐ）
+const CATEGORIES = Object.keys(CATEGORY_STYLE) as Category[]
 
 function toggleSort(key: typeof sortKey.value) {
   sortKey.value === key
@@ -37,12 +38,18 @@ function tagStyle(s: { bg: string; text: string }) {
         v-if="!isReady"
         class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm"
       >
-        <svg class="animate-spin h-12 w-12 mb-4 text-blue-400" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-        </svg>
-        <p class="text-white text-lg font-semibold">データベースを初期化中…</p>
-        <p class="text-slate-400 text-sm mt-1">{{ initMessage }}</p>
+        <!-- 失敗時はスピナーの代わりにエラーと再試行ボタンを出す -->
+        <div v-if="initError" class="px-4 w-full flex justify-center">
+          <DbInitError />
+        </div>
+        <template v-else>
+          <svg class="animate-spin h-12 w-12 mb-4 text-blue-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          <p class="text-white text-lg font-semibold">データベースを初期化中…</p>
+          <p class="text-slate-400 text-sm mt-1">{{ initMessage }}</p>
+        </template>
       </div>
     </Transition>
 

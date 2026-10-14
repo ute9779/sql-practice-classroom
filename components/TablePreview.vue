@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TABLE_NAMES } from '~/data/schema'
 import { useDatabase } from '~/composables/useDatabase'
-import type { SqlResult } from '~/composables/useDatabase'
+import type { SqlResult } from '~/utils/judge'
 
 const { exec, isReady } = useDatabase()
 
