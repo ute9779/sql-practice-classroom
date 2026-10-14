@@ -1,4 +1,5 @@
 import type { Question } from '~/data/questions'
+import { dumpDb, diffDb, totalChanges, type DbChanges } from '~/utils/dbDiff'
 
 /**
  * 採点ロジック（Nuxt/Vue に依存しない純粋な TypeScript）
@@ -248,20 +249,26 @@ export function runAndJudge(
   sql:         string,
   withSandbox: WithSandbox,
   doJudge:     boolean,
-): { result: SqlResult; verdict: Verdict | null } {
+): { result: SqlResult; verdict: Verdict | null; changes: DbChanges } {
   let userSignature: DbSignature | undefined
   let probeFailures: string[] = []
+  let changes: DbChanges = { affectedRows: 0, items: [] }
 
   // ユーザーSQLの実行（DDL/DMLは実行後の状態・制約の動作も同じサンドボックスから取得）
   const result = withSandbox((run) => {
+    // 実行の前後でDBの中身を比べ、「何が変わったか」を画面に出せるようにする
+    const dumpBefore  = dumpDb(run)
+    const totalBefore = totalChanges(run)
     const res = run(sql)
+    changes = diffDb(dumpBefore, dumpDb(run), totalChanges(run) - totalBefore)
+
     if (doJudge && isStateQuestion(q)) {
       userSignature = dbSignature(run)
       probeFailures = runProbes(q, run)   // 構造の取得後に実行する（プローブはDBを汚さないが念のため）
     }
     return res
   })
-  if (!doJudge) return { result, verdict: null }
+  if (!doJudge) return { result, verdict: null, changes }
 
   // 模範解答を別のサンドボックスで実行して期待値を得る
   let reason = isStateQuestion(q)
@@ -273,10 +280,10 @@ export function runAndJudge(
     reason = `制約の動作が期待と異なります: ${probeFailures.join(' / ')}`
   }
 
-  if (reason !== null) return { result, verdict: { status: 'wrong', missing: [], reason } }
+  if (reason !== null) return { result, verdict: { status: 'wrong', missing: [], reason }, changes }
 
   const missing = findMissingKeywords(q, sql)
-  if (missing.length > 0) return { result, verdict: { status: 'missing', missing, reason: '' } }
+  if (missing.length > 0) return { result, verdict: { status: 'missing', missing, reason: '' }, changes }
 
-  return { result, verdict: { status: 'correct', missing: [], reason: '' } }
+  return { result, verdict: { status: 'correct', missing: [], reason: '' }, changes }
 }

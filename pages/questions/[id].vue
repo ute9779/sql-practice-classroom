@@ -5,6 +5,7 @@ import { useScores } from '~/composables/useScores'
 import { useFilter } from '~/composables/useFilter'
 import { runAndJudge } from '~/utils/judge'
 import type { SqlResult } from '~/utils/judge'
+import type { DbChanges } from '~/utils/dbDiff'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,12 @@ const missingLabels = ref<string[]>([]) // 不足している指定構文のラ�
 const wrongReason = ref('')              // 不正解の理由（模範解答の中身は含まない）
 const judged = ref(false)
 const showAnswer = ref(false)            // 不正解のときの模範解答の開閉（初期は閉じる）
+const changes = ref<DbChanges | null>(null)   // 実行によるDBの変更（DDL/DML の確認用）
+
+// DDL/DML の問題では、結果の表の代わりに「データベースの変更」を見せる
+const isStateQuestion = computed(
+  () => question.value?.category === 'DDL' || question.value?.category === 'DML'
+)
 
 // 模範解答は、正解なら常に表示。不正解のときは開閉ボタンで開いたときだけ表示する
 const answerOpen = computed(() => verdict.value === 'correct' || showAnswer.value)
@@ -48,6 +55,7 @@ watch(qId, () => {
   judged.value = false
   showHint.value = false
   showAnswer.value = false
+  changes.value = null
 })
 
 function runSQL(judge: boolean) {
@@ -59,11 +67,13 @@ function runSQL(judge: boolean) {
   missingLabels.value = []
   wrongReason.value = ''
   showAnswer.value = false   // 回答し直すたびに模範解答は閉じた状態に戻す
+  changes.value = null
 
   try {
     // どの問題の SQL も使い捨てのサンドボックスDBで実行する（基準DBは変更されない）
     const out = runAndJudge(question.value, sql, withSandbox, judge)
     execResult.value = out.result
+    changes.value = out.changes
 
     if (out.verdict) {
       verdict.value = out.verdict.status
@@ -85,7 +95,11 @@ const rowCount = computed(() =>
 const { prevId: prevQ, nextId: nextQ } = computed(() => adjacentIds(qId.value)).value
 const adjacent = computed(() => adjacentIds(qId.value))
 
-const hasResult = computed(() => !!execError.value || execResult.value.length > 0 || judged.value)
+// 実行済み（エラー・結果の行・採点・DBの変更のいずれかがある）ときに結果カードを表示する。
+// changes は実行に成功すると必ず入るので、DML を「実行のみ」で流した場合も、0行の SELECT も表示される。
+const hasResult = computed(() =>
+  !!execError.value || execResult.value.length > 0 || judged.value || changes.value !== null
+)
 </script>
 
 <template>
@@ -200,14 +214,17 @@ const hasResult = computed(() => !!execError.value || execResult.value.length > 
               </div>
             </div>
 
-            <!-- 結果テーブル -->
-            <div v-if="!execError">
+            <!-- 結果テーブル（DDL/DML で結果の行がないときは、下の「データベースの変更」に任せる） -->
+            <div v-if="!execError && (execResult.length > 0 || !isStateQuestion)">
               <div class="flex items-center justify-between mb-1.5">
                 <p class="text-sm font-bold text-slate-700">実行結果</p>
                 <span class="text-xs text-slate-400">{{ rowCount }}</span>
               </div>
               <ResultTable :result="execResult" />
             </div>
+
+            <!-- DBの変更（追加・更新・削除された行、作成・削除されたテーブルなど） -->
+            <ChangeSummary v-if="!execError" :changes="changes" :show-empty="isStateQuestion" />
 
             <!-- 模範解答：正解のときは常に表示。不正解のときは開閉式（初期は閉じた状態） -->
             <div v-if="verdict" class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
