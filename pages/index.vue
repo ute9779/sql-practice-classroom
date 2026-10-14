@@ -1,181 +1,125 @@
 <script setup lang="ts">
-import { QUESTIONS, LEVEL_STYLE, CATEGORY_STYLE } from '~/data/questions'
-import type { Level, Category } from '~/data/questions'
-import { useFilter } from '~/composables/useFilter'
-import { useDatabase } from '~/composables/useDatabase'
+import { QUESTIONS, CATEGORY_STYLE, LEVEL_STYLE } from '~/data/questions'
+import type { Category, Level } from '~/data/questions'
 
-const { isReady, initMessage, initError, init } = useDatabase()
-const {
-  selectedLevels, selectedCategories,
-  sortKey, sortDir,
-  filteredQuestions, toggleLevel, toggleCategory, clearFilters, isFiltered,
-} = useFilter()
+// 問題データから内訳を集計（問題を増減しても自動で追従する）
+const total = QUESTIONS.length
+const categories = Object.keys(CATEGORY_STYLE) as Category[]
+const levels = Object.keys(LEVEL_STYLE) as Level[]
 
-onMounted(() => init())
+const countByLevel = (lv: Level) => QUESTIONS.filter((q) => q.level === lv).length
 
-const LEVELS:     Level[]    = ['初級', '中級', '上級']
-// カテゴリ一覧は CATEGORY_STYLE から導出（カテゴリ追加時の更新漏れを防ぐ）
-const CATEGORIES = Object.keys(CATEGORY_STYLE) as Category[]
-
-function toggleSort(key: typeof sortKey.value) {
-  sortKey.value === key
-    ? (sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc')
-    : ((sortKey.value = key), (sortDir.value = 'asc'))
-}
-
-// フィルターボタン選択時のインラインスタイルを返す
-function tagStyle(s: { bg: string; text: string }) {
-  return { backgroundColor: s.bg, color: s.text }
-}
+// このサイトの特徴
+const features = [
+  {
+    title: 'ブラウザだけで本物の SQL',
+    desc: 'インストールや環境構築は不要。実際の SQLite エンジンがブラウザ内で動くので、書いたクエリがその場で実行されます。',
+    icon: 'bolt',
+  },
+  {
+    title: '結果を見て自動で採点',
+    desc: '模範解答の実行結果と照らし合わせて正誤を判定。間違いの理由（列の不足・行数・並び順など）も教えてくれます。',
+    icon: 'check',
+  },
+  {
+    title: 'テーブルの変化が見える',
+    desc: 'INSERT / UPDATE / DELETE では、どの行がどう変わったかを差分で表示。練習用のコピー上で動くので元データは壊れません。',
+    icon: 'table',
+  },
+]
 </script>
 
 <template>
-  <main class="max-w-6xl mx-auto px-4 py-8">
-
-    <!-- ローディング -->
-    <Transition name="fade">
-      <div
-        v-if="!isReady"
-        class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm"
-      >
-        <!-- 失敗時はスピナーの代わりにエラーと再試行ボタンを出す -->
-        <div v-if="initError" class="px-4 w-full flex justify-center">
-          <DbInitError />
-        </div>
-        <template v-else>
-          <svg class="animate-spin h-12 w-12 mb-4 text-blue-400" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-          <p class="text-white text-lg font-semibold">データベースを初期化中…</p>
-          <p class="text-slate-400 text-sm mt-1">{{ initMessage }}</p>
-        </template>
-      </div>
-    </Transition>
-
+  <main>
     <!-- ヒーロー -->
-    <section class="mb-8">
-      <h2 class="text-3xl font-bold text-slate-800 mb-1">問題一覧</h2>
-      <p class="text-slate-500 text-sm">全 {{ QUESTIONS.length }} 問</p>
+    <section class="bg-gradient-to-b from-blue-50 to-slate-100">
+      <div class="max-w-4xl mx-auto px-4 py-20 text-center">
+        <span class="inline-block text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full mb-5">
+          ブラウザで学ぶ SQL 演習サイト
+        </span>
+        <h1 class="text-4xl sm:text-5xl font-bold text-slate-800 leading-tight mb-4">
+          SQL演習教室
+        </h1>
+        <p class="text-slate-600 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-8">
+          学園の業務データを題材に、SELECT から JOIN・集計・サブクエリ・DDL / DML まで。
+          実際に手を動かして、全 {{ total }} 問を解きながら SQL を身につけましょう。
+          <br>当サイトは<strong>登録不要・無料</strong>でご利用いただけます。
+        </p>
+        <NuxtLink
+          to="/questions"
+          class="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
+        >
+          問題一覧へ進む
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </NuxtLink>
+
+        <!-- 難易度の内訳 -->
+        <div class="flex items-center justify-center gap-2 mt-8 flex-wrap">
+          <span
+            v-for="lv in levels"
+            :key="lv"
+            class="text-xs font-semibold px-3 py-1 rounded-lg"
+            :style="{ backgroundColor: LEVEL_STYLE[lv].bg, color: LEVEL_STYLE[lv].text }"
+          >{{ lv }} {{ countByLevel(lv) }} 問</span>
+        </div>
+
+
+      </div>
     </section>
 
-    <!-- フィルター・ソートパネル -->
-    <div class="bg-white rounded-2xl shadow p-5 mb-6">
-      <div class="flex flex-wrap items-start gap-6">
-
-        <!-- 難易度フィルター -->
-        <div class="flex flex-col gap-2">
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">難易度</p>
-          <div class="flex gap-2 flex-wrap">
-            <button
-              v-for="lv in LEVELS" :key="lv"
-              class="px-3 py-1 rounded-lg text-xs font-semibold border transition-all"
-              :style="selectedLevels.includes(lv)
-                ? { backgroundColor: LEVEL_STYLE[lv].bg, color: LEVEL_STYLE[lv].text, borderColor: LEVEL_STYLE[lv].text, outline: `2px solid ${LEVEL_STYLE[lv].text}`, outlineOffset: '2px' }
-                : {}"
-              :class="!selectedLevels.includes(lv) ? 'bg-white text-slate-500 border-slate-200 hover:border-slate-400' : ''"
-              @click="toggleLevel(lv)"
-            >{{ lv }}</button>
+    <!-- 特徴 -->
+    <section class="max-w-5xl mx-auto px-4 py-16">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+          v-for="f in features"
+          :key="f.title"
+          class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col gap-3"
+        >
+          <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path v-if="f.icon === 'bolt'" d="M13 2L3 14h7l-1 8 10-12h-7z" />
+              <template v-else-if="f.icon === 'check'">
+                <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </template>
+              <template v-else>
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+              </template>
+            </svg>
           </div>
-        </div>
-
-        <!-- 種類フィルター -->
-        <div class="flex flex-col gap-2 flex-1">
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">種類</p>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="cat in CATEGORIES" :key="cat"
-              class="px-3 py-1 rounded-lg text-xs font-semibold border transition-all"
-              :style="selectedCategories.includes(cat)
-                ? { backgroundColor: CATEGORY_STYLE[cat].bg, color: CATEGORY_STYLE[cat].text, borderColor: CATEGORY_STYLE[cat].text, outline: `2px solid ${CATEGORY_STYLE[cat].text}`, outlineOffset: '2px' }
-                : {}"
-              :class="!selectedCategories.includes(cat) ? 'bg-white text-slate-500 border-slate-200 hover:border-slate-400' : ''"
-              @click="toggleCategory(cat)"
-            >{{ cat }}</button>
-          </div>
-        </div>
-
-        <!-- 並び替え -->
-        <div class="flex flex-col gap-2 shrink-0">
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">並び替え</p>
-          <div class="flex gap-2">
-            <button
-              class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold border transition-all"
-              :class="sortKey === 'id' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'"
-              @click="toggleSort('id')"
-            >問題番号<span v-if="sortKey === 'id'">{{ sortDir === 'asc' ? ' ↑' : ' ↓' }}</span></button>
-            <button
-              class="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold border transition-all"
-              :class="sortKey === 'level' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'"
-              @click="toggleSort('level')"
-            >難易度順<span v-if="sortKey === 'level'">{{ sortDir === 'asc' ? ' ↑' : ' ↓' }}</span></button>
-          </div>
-        </div>
-
-        <!-- クリア -->
-        <div class="flex items-end shrink-0">
-          <button
-            v-if="isFiltered"
-            class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
-            @click="clearFilters"
-          >× クリア</button>
+          <h2 class="text-lg font-bold text-slate-800">{{ f.title }}</h2>
+          <p class="text-sm text-slate-600 leading-relaxed">{{ f.desc }}</p>
         </div>
       </div>
+    </section>
 
-      <p class="mt-3 text-xs text-slate-400">
-        {{ filteredQuestions.length }} 件表示
-        <span v-if="isFiltered" class="text-blue-500 ml-1">（絞り込み中）</span>
-      </p>
-    </div>
-
-    <!-- 問題カードグリッド -->
-    <div v-if="filteredQuestions.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      <NuxtLink
-        v-for="q in filteredQuestions"
-        :key="q.id"
-        :to="`/questions/${q.id}`"
-        class="group bg-white rounded-2xl shadow hover:shadow-md border border-slate-100 hover:border-blue-200 p-5 flex flex-col gap-3 transition-all duration-200 hover:-translate-y-0.5"
-      >
-        <!-- ヘッダー -->
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-lg">Q{{ q.id }}</span>
-          <div class="flex items-center gap-1.5">
-            <!-- 種類タグ -->
-            <span
-              class="text-xs font-semibold px-2.5 py-0.5 rounded-lg"
-              :style="tagStyle(CATEGORY_STYLE[q.category])"
-            >{{ q.category }}</span>
-            <!-- 難易度タグ -->
-            <span
-              class="text-xs font-semibold px-2.5 py-0.5 rounded-lg"
-              :style="tagStyle(LEVEL_STYLE[q.level])"
-            >{{ q.level }}</span>
-          </div>
+    <!-- 扱う分野 -->
+    <section class="max-w-5xl mx-auto px-4 pb-16">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
+        <h2 class="text-xl font-bold text-slate-800 mb-1">扱う分野</h2>
+        <p class="text-sm text-slate-500 mb-6">{{ categories.length }} カテゴリ・全 {{ total }} 問</p>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <span
+            v-for="cat in categories"
+            :key="cat"
+            class="text-sm font-semibold px-3.5 py-1.5 rounded-lg"
+            :style="{ backgroundColor: CATEGORY_STYLE[cat].bg, color: CATEGORY_STYLE[cat].text }"
+          >{{ cat }}</span>
         </div>
 
-        <!-- タイトル -->
-        <h3 class="text-sm font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-snug flex-1">
-          {{ q.title }}
-        </h3>
-
-        <!-- フッター -->
-        <div class="flex items-center justify-end mt-auto pt-2 border-t border-slate-100">
-          <span class="text-xs text-blue-500 font-semibold group-hover:underline">挑戦する →</span>
-        </div>
-      </NuxtLink>
-    </div>
-
-    <!-- 結果なし -->
-    <div v-else class="text-center py-16 text-slate-400">
-      <p class="text-4xl mb-3">🔍</p>
-      <p class="font-semibold">条件に一致する問題がありません</p>
-      <button class="mt-4 text-sm text-blue-500 hover:underline" @click="clearFilters">フィルターをリセット</button>
-    </div>
-
+        <NuxtLink
+          to="/questions"
+          class="inline-flex items-center gap-2 mt-8 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow transition-colors"
+        >
+          さっそく始める
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </NuxtLink>
+      </div>
+    </section>
   </main>
 </template>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.4s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-</style>

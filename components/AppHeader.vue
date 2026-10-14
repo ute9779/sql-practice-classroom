@@ -8,7 +8,7 @@
           <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" stroke="currentColor" stroke-width="2" />
         </svg>
         <h1 class="text-white text-xl font-bold tracking-wide group-hover:underline">
-          SQL 研修アプリ
+          SQL演習教室
         </h1>
       </NuxtLink>
     </div>
