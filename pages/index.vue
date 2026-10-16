@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { QUESTIONS, CATEGORY_STYLE, LEVEL_STYLE } from '~/data/questions'
 import type { Category, Level } from '~/data/questions'
+import { SITE } from '~/data/site'
 
 // 問題データから内訳を集計（問題を増減しても自動で追従する）
 const total = QUESTIONS.length
+
+useHead({
+  title: `${SITE.name}｜ブラウザで学ぶ無料 SQL 演習サイト`,
+  link: [{ rel: 'canonical', href: `${SITE.url}/` }],
+})
 const categories = Object.keys(CATEGORY_STYLE) as Category[]
 const levels = Object.keys(LEVEL_STYLE) as Level[]
 

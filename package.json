@@ -6,7 +6,8 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "generate": "nuxt generate"
+    "generate": "nuxt generate",
+    "postgenerate": "node scripts/gen-sitemap.mjs"
   },
   "dependencies": {
     "@nuxtjs/tailwindcss": "6.12.1",

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sql-practice-classroom.com/sitemap.xml

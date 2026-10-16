@@ -6,6 +6,7 @@ import { useFilter } from '~/composables/useFilter'
 import { runAndJudge } from '~/utils/judge'
 import type { SqlResult } from '~/utils/judge'
 import type { DbChanges } from '~/utils/dbDiff'
+import { SITE } from '~/data/site'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,6 +17,17 @@ const { filteredQuestions, adjacentIds } = useFilter()
 const qId = computed(() => Number(route.params.id))
 const qIndex = computed(() => qId.value - 1)
 const question = computed(() => QUESTIONS.find((q) => q.id === qId.value))
+
+// 問題ごとの title / description（検索結果での見え方を良くする）
+useHead(() => {
+  const q = question.value
+  if (!q) return { title: `問題｜${SITE.name}` }
+  return {
+    title: `Q${q.id} ${q.title}（${q.category}・${q.level}）｜${SITE.name}`,
+    meta: [{ name: 'description', content: `【${q.category}／${q.level}】${q.desc.replace(/\s+/g, ' ').slice(0, 110)}` }],
+    link: [{ rel: 'canonical', href: `${SITE.url}/questions/${q.id}` }],
+  }
+})
 
 watchEffect(() => {
   if (!question.value) router.replace('/questions')

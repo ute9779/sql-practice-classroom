@@ -3,6 +3,10 @@
  */
 export const SITE = {
   name:    'SQL演習教室',
+  /** 公開 URL（末尾スラッシュなし）。sitemap / OGP / canonical で使う */
+  url:     'https://sql-practice-classroom.com',
+  /** サイト全体の説明（og:description やトップの description に使う） */
+  description: '学園の業務データを題材に、ブラウザだけで SQL を練習できる無料の学習サイト。SELECT から JOIN・集計・サブクエリ・DDL / DML まで、全73問をその場で実行・採点できます。',
   /** 著作権表示に使う名前。空のままなら「個人開発」とだけ表示する */
   author:  'SQL演習教室',
   /** 問い合わせ先の X（旧Twitter）アカウントの URL。空ならリンクを出さない。 */

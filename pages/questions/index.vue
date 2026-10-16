@@ -3,6 +3,13 @@ import { QUESTIONS, LEVEL_STYLE, CATEGORY_STYLE } from '~/data/questions'
 import type { Level, Category } from '~/data/questions'
 import { useFilter } from '~/composables/useFilter'
 import { useDatabase } from '~/composables/useDatabase'
+import { SITE } from '~/data/site'
+
+useHead({
+  title: `問題一覧（全${QUESTIONS.length}問）｜${SITE.name}`,
+  meta: [{ name: 'description', content: `SQL の練習問題 全${QUESTIONS.length}問の一覧。難易度・カテゴリで絞り込めます。` }],
+  link: [{ rel: 'canonical', href: `${SITE.url}/questions` }],
+})
 
 const { isReady, initMessage, initError, init } = useDatabase()
 const {
